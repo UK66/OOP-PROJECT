@@ -16,7 +16,7 @@ public class Transaction {
     /** Standard loan period in days. */
     public static final int LOAN_PERIOD_DAYS = 14;
 
-    public enum Status { ISSUED, RETURNED, OVERDUE }
+    public enum Status { ISSUED, RETURNED}
 
     private int        transactionId;
     private int        bookId;
