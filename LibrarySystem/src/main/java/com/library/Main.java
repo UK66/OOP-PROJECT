@@ -1,6 +1,7 @@
 package com.library;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import com.library.ui.MainFrame;
 
 import javax.swing.*;
 
@@ -13,7 +14,7 @@ public class Main {
 
     public static void main(String[] args) {
 
-        // ── 1. Apply FlatLaf dark theme (modern Swing look) ────────
+        // — 1. Apply FlatLaf dark theme (modern Swing look) —
         FlatDarkLaf.setup();
 
         // Optional: override specific UI properties for fine-tuning
@@ -21,15 +22,9 @@ public class Main {
         UIManager.put("Component.arc", 8);
         UIManager.put("TextComponent.arc", 6);
 
-        // ── 2. Launch GUI on the Event Dispatch Thread ─────────────
+        // — 2. Launch GUI on the Event Dispatch Thread —
         SwingUtilities.invokeLater(() -> {
-            // TODO (Day 4): replace with: new MainFrame().setVisible(true);
-            JOptionPane.showMessageDialog(
-                    null,
-                    "Library Management System\nDay 1 smoke-test: Swing + FlatLaf OK ✓",
-                    "Library System",
-                    JOptionPane.INFORMATION_MESSAGE
-            );
+            new MainFrame().setVisible(true);
         });
     }
 }
