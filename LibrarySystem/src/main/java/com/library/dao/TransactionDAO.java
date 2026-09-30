@@ -161,6 +161,31 @@ public class TransactionDAO implements ITransactionDAO {
 
         return results;
     }
+    @Override
+public Transaction getTransactionById(int transactionId) {
+    String sql = "SELECT t.*, b.title AS book_title, m.name AS member_name " +
+                 "FROM transactions t " +
+                 "JOIN books b ON t.book_id = b.book_id " +
+                 "JOIN members m ON t.member_id = m.member_id " +
+                 "WHERE t.transaction_id = ?";
+
+    try (Connection conn = DBConnection.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setInt(1, transactionId);
+
+        try (ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return mapRow(rs);
+            }
+        }
+
+    } catch (SQLException e) {
+        throw new RuntimeException("Failed to fetch transaction " + transactionId + ": " + e.getMessage(), e);
+    }
+
+    return null;
+}
 
     // ── Row mapping helper ──────────────────────────────────
     // Requires a query that JOINs books and members and aliases

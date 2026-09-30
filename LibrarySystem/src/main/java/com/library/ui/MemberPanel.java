@@ -67,7 +67,7 @@ public class MemberPanel extends JPanel {
         return panel;
     }
 
-    private void refreshTable() {
+    public void refreshTable() {
         tableModel.setRowCount(0);
         try {
             List<Member> members = memberService.getAllMembers();

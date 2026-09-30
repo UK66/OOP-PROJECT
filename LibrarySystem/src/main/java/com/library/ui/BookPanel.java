@@ -88,7 +88,7 @@ public class BookPanel extends JPanel {
     }
 
     // ── Data loading ─────────────────────────────────────────
-    private void refreshTable() {
+    public void refreshTable() {
         tableModel.setRowCount(0);
         try {
             List<Book> books = bookService.getAllBooks();
