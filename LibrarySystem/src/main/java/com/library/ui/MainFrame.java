@@ -15,20 +15,23 @@ public class MainFrame extends JFrame {
         BookPanel bookPanel = new BookPanel();
         MemberPanel memberPanel = new MemberPanel();
         IssueReturnPanel issueReturnPanel = new IssueReturnPanel();
+        ReportsPanel reportsPanel = new ReportsPanel();
 
         JTabbedPane tabbedPane = new JTabbedPane();
         tabbedPane.addTab("Books", bookPanel);
         tabbedPane.addTab("Members", memberPanel);
         tabbedPane.addTab("Issue / Return", issueReturnPanel);
+        tabbedPane.addTab("Reports", reportsPanel);
 
         // Refresh whichever tab becomes active, so cross-tab changes
-        // (e.g. issuing a book) are always reflected when you switch back.
+        // are always reflected when switching tabs
         tabbedPane.addChangeListener(e -> {
             int selected = tabbedPane.getSelectedIndex();
             switch (selected) {
                 case 0 -> bookPanel.refreshTable();
                 case 1 -> memberPanel.refreshTable();
-                // IssueReturnPanel already refreshes itself after each action
+                case 2 -> issueReturnPanel.refreshAll();
+                case 3 -> reportsPanel.refresh();
             }
         });
 

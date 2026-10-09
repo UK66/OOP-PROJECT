@@ -36,8 +36,7 @@ public class IssueReturnPanel extends JPanel {
         add(buildActiveTable(), BorderLayout.CENTER);
         add(buildReturnBar(), BorderLayout.SOUTH);
 
-        refreshDropdowns();
-        refreshActiveTable();
+        refreshAll();
     }
 
     // ── Issue section ────────────────────────────────────────
@@ -47,14 +46,14 @@ public class IssueReturnPanel extends JPanel {
 
         memberCombo = new JComboBox<>();
         bookCombo = new JComboBox<>();
-        memberCombo.setPreferredSize(new Dimension(200, 28));
-        bookCombo.setPreferredSize(new Dimension(220, 28));
+        memberCombo.setPreferredSize(new Dimension(220, 28));
+        bookCombo.setPreferredSize(new Dimension(260, 28));
 
         JButton issueBtn = new JButton("Issue");
         issueBtn.addActionListener(e -> onIssue());
 
         JButton refreshBtn = new JButton("Refresh Lists");
-        refreshBtn.addActionListener(e -> refreshDropdowns());
+        refreshBtn.addActionListener(e -> refreshAll());
 
         panel.add(new JLabel("Member:"));
         panel.add(memberCombo);
@@ -94,38 +93,44 @@ public class IssueReturnPanel extends JPanel {
     }
 
     // ── Data loading ─────────────────────────────────────────
-    private void refreshDropdowns() {
+    public void refreshAll() {
+        refreshDropdowns();
+        refreshActiveTable();
+    }
+
+    public void refreshDropdowns() {
         memberCombo.removeAllItems();
-        for (Member m : memberService.getAllMembers()) {
-            if (m.isActive()) {
-                memberCombo.addItem(m);
+        try {
+            for (Member m : memberService.getAllMembers()) {
+                if (m.isActive()) {
+                    memberCombo.addItem(m);
+                }
             }
+        } catch (Exception e) {
+            showError("Failed to load members: " + e.getMessage());
         }
 
         bookCombo.removeAllItems();
-        for (Book b : bookService.getAllBooks()) {
-            if (b.isAvailable()) {
-                bookCombo.addItem(b);
+        try {
+            for (Book b : bookService.getAllBooks()) {
+                if (b.isAvailable()) {
+                    bookCombo.addItem(b);
+                }
             }
+        } catch (Exception e) {
+            showError("Failed to load books: " + e.getMessage());
         }
     }
 
-    private void refreshActiveTable() {
+    public void refreshActiveTable() {
         activeTableModel.setRowCount(0);
         try {
-            // Pull every member's active issues by scanning all members —
-            // simplest approach at this project's scale; a dedicated
-            // "get all issued transactions" DAO method would be cleaner
-            // at larger scale.
-            List<Member> members = memberService.getAllMembers();
-            for (Member m : members) {
-                List<Transaction> active = transactionService.getActiveIssuesForMember(m.getId());
-                for (Transaction t : active) {
-                    activeTableModel.addRow(new Object[]{
-                        t.getTransactionId(), t.getBookTitle(), t.getMemberName(),
-                        t.getIssueDate(), t.getDueDate()
-                    });
-                }
+            List<Transaction> active = transactionService.getAllActiveTransactions();
+            for (Transaction t : active) {
+                activeTableModel.addRow(new Object[]{
+                    t.getTransactionId(), t.getBookTitle(), t.getMemberName(),
+                    t.getIssueDate(), t.getDueDate()
+                });
             }
         } catch (Exception e) {
             showError("Failed to load active issues: " + e.getMessage());
@@ -148,8 +153,7 @@ public class IssueReturnPanel extends JPanel {
                 "\"" + selectedBook.getTitle() + "\" issued to " + selectedMember.getName() + ".",
                 "Book Issued", JOptionPane.INFORMATION_MESSAGE);
 
-            refreshDropdowns();   // book may no longer be available
-            refreshActiveTable();
+            refreshAll();
         } catch (Exception ex) {
             showError(ex.getMessage());
         }
@@ -175,8 +179,7 @@ public class IssueReturnPanel extends JPanel {
 
             JOptionPane.showMessageDialog(this, message, "Book Returned", JOptionPane.INFORMATION_MESSAGE);
 
-            refreshDropdowns();   // book is available again
-            refreshActiveTable();
+            refreshAll();
         } catch (Exception ex) {
             showError(ex.getMessage());
         }

@@ -1,6 +1,7 @@
 package com.library.dao;
 
 import com.library.DBConnection;
+import com.library.exception.DatabaseException;
 import com.library.model.Book;
 
 import java.sql.*;
@@ -13,7 +14,6 @@ public class BookDAO implements IBookDAO {
     public void addBook(Book book) {
         String sql = "INSERT INTO books (title, author, isbn, category, total_copies, available_copies) " +
                 "VALUES (?, ?, ?, ?, ?, ?)";
-
         try (Connection conn = DBConnection.getConnection();
                 PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -34,7 +34,7 @@ public class BookDAO implements IBookDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to add book: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to add book", e);
         }
     }
 
@@ -54,10 +54,32 @@ public class BookDAO implements IBookDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to fetch book " + bookId + ": " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to fetch book", e);
         }
 
         return null; // no book found with this id
+    }
+
+    @Override
+    public Book getBookByIsbn(String isbn) {
+        String sql = "SELECT * FROM books WHERE isbn = ?";
+
+        try (Connection conn = DBConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, isbn);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapRow(rs);
+                }
+            }
+
+        } catch (SQLException e) {
+            throw DatabaseException.fromSQLException("Failed to fetch book by ISBN", e);
+        }
+
+        return null;
     }
 
     @Override
@@ -74,7 +96,7 @@ public class BookDAO implements IBookDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to fetch books: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to fetch books", e);
         }
 
         return books;
@@ -98,11 +120,11 @@ public class BookDAO implements IBookDAO {
 
             int rows = ps.executeUpdate();
             if (rows == 0) {
-                throw new RuntimeException("No book found with id " + book.getBookId() + " to update.");
+                throw new DatabaseException("No book found with id " + book.getBookId() + " to update.");
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to update book: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to update book", e);
         }
     }
 
@@ -117,11 +139,11 @@ public class BookDAO implements IBookDAO {
 
             int rows = ps.executeUpdate();
             if (rows == 0) {
-                throw new RuntimeException("No book found with id " + bookId + " to delete.");
+                throw new DatabaseException("No book found with id " + bookId + " to delete.");
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to delete book " + bookId + ": " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to delete book", e);
         }
     }
 
@@ -145,17 +167,15 @@ public class BookDAO implements IBookDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to search books: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to search books", e);
         }
 
         return books;
     }
 
     // ── Row mapping helper ──────────────────────────────────
-    // Converts one ResultSet row into a Book object. Kept private and
-    // shared across all read methods so column-to-field mapping lives
-    // in exactly one place.
     private Book mapRow(ResultSet rs) throws SQLException {
+        Date added = rs.getDate("added_date");
         return new Book(
                 rs.getInt("book_id"),
                 rs.getString("title"),
@@ -164,6 +184,6 @@ public class BookDAO implements IBookDAO {
                 rs.getString("category"),
                 rs.getInt("total_copies"),
                 rs.getInt("available_copies"),
-                rs.getDate("added_date").toLocalDate());
+                added != null ? added.toLocalDate() : null);
     }
 }

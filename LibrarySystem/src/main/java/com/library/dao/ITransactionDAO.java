@@ -13,4 +13,10 @@ public interface ITransactionDAO {
     List<Transaction> getOverdueTransactions();
 
     Transaction getTransactionById(int transactionId);
+
+    List<Transaction> getActiveTransactions();
+
+    void clearFine(int transactionId);
+
+    void clearAllFinesForMember(int memberId);
 }

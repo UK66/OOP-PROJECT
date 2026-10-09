@@ -1,6 +1,7 @@
 package com.library.dao;
 
 import com.library.DBConnection;
+import com.library.exception.DatabaseException;
 import com.library.model.Transaction;
 
 import java.sql.*;
@@ -39,24 +40,22 @@ public class TransactionDAO implements ITransactionDAO {
                 }
             }
 
-            // 2. Decrement available_copies — the WHERE clause guards against
-            // a copy that became unavailable between the app's check and this write
+            // 2. Decrement available_copies atomically
             try (PreparedStatement ps = conn.prepareStatement(decrementSql)) {
                 ps.setInt(1, transaction.getBookId());
                 int rows = ps.executeUpdate();
 
                 if (rows == 0) {
-                    // no copies were available — abort the whole operation
                     conn.rollback();
-                    throw new RuntimeException("Book is no longer available (copy count is zero).");
+                    throw new DatabaseException("Book is no longer available (copy count is zero).");
                 }
             }
 
-            conn.commit(); // both writes succeeded — make them permanent together
+            conn.commit();
 
         } catch (SQLException e) {
             rollbackQuietly(conn);
-            throw new RuntimeException("Failed to issue book: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to issue book", e);
         } finally {
             resetAutoCommit(conn);
         }
@@ -84,11 +83,11 @@ public class TransactionDAO implements ITransactionDAO {
                 int rows = ps.executeUpdate();
                 if (rows == 0) {
                     conn.rollback();
-                    throw new RuntimeException("No transaction found with id " + transaction.getTransactionId());
+                    throw new DatabaseException("No transaction found with id " + transaction.getTransactionId());
                 }
             }
 
-            // 2. Give the copy back to the pool
+            // 2. Return the copy back to the available pool
             try (PreparedStatement ps = conn.prepareStatement(incrementSql)) {
                 ps.setInt(1, transaction.getBookId());
                 ps.executeUpdate();
@@ -98,7 +97,7 @@ public class TransactionDAO implements ITransactionDAO {
 
         } catch (SQLException e) {
             rollbackQuietly(conn);
-            throw new RuntimeException("Failed to return book: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to return book", e);
         } finally {
             resetAutoCommit(conn);
         }
@@ -127,8 +126,7 @@ public class TransactionDAO implements ITransactionDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to fetch transactions for member " + memberId + ": " + e.getMessage(),
-                    e);
+            throw DatabaseException.fromSQLException("Failed to fetch transactions for member " + memberId, e);
         }
 
         return results;
@@ -136,8 +134,6 @@ public class TransactionDAO implements ITransactionDAO {
 
     @Override
     public List<Transaction> getOverdueTransactions() {
-        // Overdue = still ISSUED and due_date has passed — derived from facts,
-        // matching the decision to drop a stored OVERDUE status.
         String sql = "SELECT t.*, b.title AS book_title, m.name AS member_name " +
                 "FROM transactions t " +
                 "JOIN books b ON t.book_id = b.book_id " +
@@ -156,40 +152,89 @@ public class TransactionDAO implements ITransactionDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to fetch overdue transactions: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to fetch overdue transactions", e);
         }
 
         return results;
     }
+
     @Override
-public Transaction getTransactionById(int transactionId) {
-    String sql = "SELECT t.*, b.title AS book_title, m.name AS member_name " +
-                 "FROM transactions t " +
-                 "JOIN books b ON t.book_id = b.book_id " +
-                 "JOIN members m ON t.member_id = m.member_id " +
-                 "WHERE t.transaction_id = ?";
+    public Transaction getTransactionById(int transactionId) {
+        String sql = "SELECT t.*, b.title AS book_title, m.name AS member_name " +
+                "FROM transactions t " +
+                "JOIN books b ON t.book_id = b.book_id " +
+                "JOIN members m ON t.member_id = m.member_id " +
+                "WHERE t.transaction_id = ?";
 
-    try (Connection conn = DBConnection.getConnection();
-         PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DBConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
-        ps.setInt(1, transactionId);
+            ps.setInt(1, transactionId);
 
-        try (ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) {
-                return mapRow(rs);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return mapRow(rs);
+                }
             }
+
+        } catch (SQLException e) {
+            throw DatabaseException.fromSQLException("Failed to fetch transaction " + transactionId, e);
         }
 
-    } catch (SQLException e) {
-        throw new RuntimeException("Failed to fetch transaction " + transactionId + ": " + e.getMessage(), e);
+        return null;
     }
 
-    return null;
-}
+    @Override
+    public List<Transaction> getActiveTransactions() {
+        String sql = "SELECT t.*, b.title AS book_title, m.name AS member_name " +
+                "FROM transactions t " +
+                "JOIN books b ON t.book_id = b.book_id " +
+                "JOIN members m ON t.member_id = m.member_id " +
+                "WHERE t.status = 'ISSUED' " +
+                "ORDER BY t.due_date ASC";
+
+        List<Transaction> results = new ArrayList<>();
+
+        try (Connection conn = DBConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                results.add(mapRow(rs));
+            }
+
+        } catch (SQLException e) {
+            throw DatabaseException.fromSQLException("Failed to fetch active transactions", e);
+        }
+
+        return results;
+    }
+
+    @Override
+    public void clearFine(int transactionId) {
+        String sql = "UPDATE transactions SET fine_amount = 0.00 WHERE transaction_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, transactionId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw DatabaseException.fromSQLException("Failed to clear fine", e);
+        }
+    }
+
+    @Override
+    public void clearAllFinesForMember(int memberId) {
+        String sql = "UPDATE transactions SET fine_amount = 0.00 WHERE member_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, memberId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw DatabaseException.fromSQLException("Failed to clear fines for member " + memberId, e);
+        }
+    }
 
     // ── Row mapping helper ──────────────────────────────────
-    // Requires a query that JOINs books and members and aliases
-    // book.title AS book_title, member.name AS member_name
     private Transaction mapRow(ResultSet rs) throws SQLException {
         Date returnDate = rs.getDate("return_date");
 
@@ -213,8 +258,7 @@ public Transaction getTransactionById(int transactionId) {
             try {
                 conn.rollback();
             } catch (SQLException ex) {
-                // rollback failure is logged but shouldn't mask the original error
-                ex.printStackTrace();
+                // log but don't mask original error
             }
         }
     }
@@ -225,7 +269,7 @@ public Transaction getTransactionById(int transactionId) {
                 conn.setAutoCommit(true);
                 conn.close();
             } catch (SQLException ex) {
-                ex.printStackTrace();
+                // ignore close exception
             }
         }
     }

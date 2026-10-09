@@ -5,16 +5,19 @@ import com.library.dao.TransactionDAO;
 import com.library.model.Member;
 import com.library.model.Transaction;
 import com.library.service.MemberService;
+import com.library.service.TransactionService;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.math.BigDecimal;
 import java.util.List;
 
 public class MemberPanel extends JPanel {
 
     private final MemberService memberService = new MemberService();
+    private final TransactionService transactionService = new TransactionService();
     private final ITransactionDAO transactionDAO = new TransactionDAO();
 
     private JTable table;
@@ -151,9 +154,7 @@ public class MemberPanel extends JPanel {
                 memberService.deleteMember(memberId);
                 refreshTable();
             } catch (Exception ex) {
-                showError("Could not remove member: " + ex.getMessage() +
-                    "\n(This usually means they have transaction history — members with " +
-                    "borrowing history can't be deleted.)");
+                showError(ex.getMessage());
             }
         }
     }
@@ -168,29 +169,84 @@ public class MemberPanel extends JPanel {
         int memberId = (int) tableModel.getValueAt(row, 0);
         String name = (String) tableModel.getValueAt(row, 1);
 
-        List<Transaction> history = transactionDAO.getTransactionsByMember(memberId);
+        showHistoryDialog(memberId, name);
+    }
 
-        if (history.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                name + " has no borrowing history.",
-                "Borrowing History", JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
+    private void showHistoryDialog(int memberId, String name) {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this),
+                "Borrowing History — " + name, true);
+        dialog.setLayout(new BorderLayout(10, 10));
+        ((JPanel) dialog.getContentPane()).setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
-        StringBuilder sb = new StringBuilder();
-        for (Transaction t : history) {
-            sb.append(String.format("%s | Issued: %s | Due: %s | Status: %s | Fine: ₹%.2f%n",
-                t.getBookTitle(), t.getIssueDate(), t.getDueDate(),
-                t.getStatus(), t.getFineAmount()));
-        }
+        String[] cols = {"Txn ID", "Book", "Issued", "Due", "Returned", "Status", "Fine"};
+        DefaultTableModel model = new DefaultTableModel(cols, 0) {
+            @Override
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable historyTable = new JTable(model);
+        historyTable.setRowHeight(22);
 
-        JTextArea textArea = new JTextArea(sb.toString());
-        textArea.setEditable(false);
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        scrollPane.setPreferredSize(new Dimension(500, 250));
+        JLabel summaryLabel = new JLabel();
 
-        JOptionPane.showMessageDialog(this, scrollPane,
-            "Borrowing History — " + name, JOptionPane.PLAIN_MESSAGE);
+        Runnable loadData = () -> {
+            model.setRowCount(0);
+            try {
+                List<Transaction> history = transactionDAO.getTransactionsByMember(memberId);
+                BigDecimal totalFine = BigDecimal.ZERO;
+                for (Transaction t : history) {
+                    BigDecimal fine = t.getFineAmount() != null ? t.getFineAmount() : BigDecimal.ZERO;
+                    if (t.getStatus() == Transaction.Status.RETURNED) {
+                        totalFine = totalFine.add(fine);
+                    }
+                    model.addRow(new Object[]{
+                        t.getTransactionId(),
+                        t.getBookTitle(),
+                        t.getIssueDate(),
+                        t.getDueDate(),
+                        t.getReturnDate() != null ? t.getReturnDate() : "—",
+                        t.getStatus(),
+                        String.format("₹%.2f", fine)
+                    });
+                }
+                summaryLabel.setText(String.format("Total Outstanding Fine: ₹%.2f (%d transactions)",
+                        totalFine, history.size()));
+            } catch (Exception ex) {
+                showError("Failed to load history: " + ex.getMessage());
+            }
+        };
+
+        loadData.run();
+
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.add(summaryLabel, BorderLayout.WEST);
+
+        JPanel btnPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        JButton payFineBtn = new JButton("Pay / Clear Fine");
+        JButton closeBtn = new JButton("Close");
+
+        payFineBtn.addActionListener(ev -> {
+            try {
+                transactionService.clearAllFinesForMember(memberId);
+                JOptionPane.showMessageDialog(dialog,
+                        "Outstanding fines cleared for " + name + ".",
+                        "Fines Cleared", JOptionPane.INFORMATION_MESSAGE);
+                loadData.run();
+            } catch (Exception ex) {
+                showError(ex.getMessage());
+            }
+        });
+
+        closeBtn.addActionListener(ev -> dialog.dispose());
+
+        btnPanel.add(payFineBtn);
+        btnPanel.add(closeBtn);
+        bottomPanel.add(btnPanel, BorderLayout.EAST);
+
+        dialog.add(new JScrollPane(historyTable), BorderLayout.CENTER);
+        dialog.add(bottomPanel, BorderLayout.SOUTH);
+        dialog.setSize(650, 350);
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
     }
 
     private void showError(String message) {

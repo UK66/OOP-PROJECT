@@ -1,6 +1,7 @@
 package com.library.dao;
 
 import com.library.DBConnection;
+import com.library.exception.DatabaseException;
 import com.library.model.Member;
 
 import java.sql.*;
@@ -32,7 +33,7 @@ public class MemberDAO implements IMemberDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to add member: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to add member", e);
         }
     }
 
@@ -52,7 +53,7 @@ public class MemberDAO implements IMemberDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to fetch member " + memberId + ": " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to fetch member", e);
         }
 
         return null;
@@ -72,7 +73,7 @@ public class MemberDAO implements IMemberDAO {
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to fetch members: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to fetch members", e);
         }
 
         return members;
@@ -93,11 +94,11 @@ public class MemberDAO implements IMemberDAO {
 
             int rows = ps.executeUpdate();
             if (rows == 0) {
-                throw new RuntimeException("No member found with id " + member.getId() + " to update.");
+                throw new DatabaseException("No member found with id " + member.getId() + " to update.");
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to update member: " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to update member", e);
         }
     }
 
@@ -112,22 +113,23 @@ public class MemberDAO implements IMemberDAO {
 
             int rows = ps.executeUpdate();
             if (rows == 0) {
-                throw new RuntimeException("No member found with id " + memberId + " to delete.");
+                throw new DatabaseException("No member found with id " + memberId + " to delete.");
             }
 
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to delete member " + memberId + ": " + e.getMessage(), e);
+            throw DatabaseException.fromSQLException("Failed to delete member", e);
         }
     }
 
     // ── Row mapping helper ──────────────────────────────────
     private Member mapRow(ResultSet rs) throws SQLException {
+        Date membershipDate = rs.getDate("membership_date");
         return new Member(
                 rs.getInt("member_id"),
                 rs.getString("name"),
                 rs.getString("email"),
                 rs.getString("contact"),
-                rs.getDate("membership_date").toLocalDate(),
+                membershipDate != null ? membershipDate.toLocalDate() : null,
                 rs.getBoolean("is_active"));
     }
 }

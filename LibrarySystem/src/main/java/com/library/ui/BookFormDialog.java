@@ -55,7 +55,7 @@ public class BookFormDialog extends JDialog {
         panel.add(new JLabel("Total Copies:"));
         panel.add(totalCopiesField);
 
-        panel.setPreferredSize(new Dimension(320, 160));
+        panel.setPreferredSize(new Dimension(340, 170));
         return panel;
     }
 
@@ -87,8 +87,6 @@ public class BookFormDialog extends JDialog {
         String category = categoryField.getText().trim();
         String totalCopiesText = totalCopiesField.getText().trim();
 
-        // Basic field-level checks here; deeper business rules (duplicate ISBN etc.)
-        // are enforced in BookService, not duplicated here.
         if (title.isEmpty() || author.isEmpty() || isbn.isEmpty()) {
             JOptionPane.showMessageDialog(this,
                     "Title, Author, and ISBN are required.",
@@ -112,14 +110,23 @@ public class BookFormDialog extends JDialog {
             // Adding: availableCopies starts equal to totalCopies
             resultBook = new Book(title, author, isbn, category, totalCopies);
         } else {
-            // Editing: preserve id and availableCopies (not editable in this form —
-            // available copies change only through issue/return, not manual edit)
+            // Editing: maintain copy counts consistent with active loans
+            int borrowedCopies = existingBook.getTotalCopies() - existingBook.getAvailableCopies();
+            if (totalCopies < borrowedCopies) {
+                JOptionPane.showMessageDialog(this,
+                        String.format("Cannot set total copies to %d because %d copy(s) are currently issued.",
+                                totalCopies, borrowedCopies),
+                        "Validation Error", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
             resultBook = existingBook;
             resultBook.setTitle(title);
             resultBook.setAuthor(author);
             resultBook.setIsbn(isbn);
             resultBook.setCategory(category);
             resultBook.setTotalCopies(totalCopies);
+            resultBook.setAvailableCopies(totalCopies - borrowedCopies);
         }
 
         dispose();
