@@ -1,3 +1,47 @@
+# Maven build output
 target/
+
+# Compiled Java files
 *.class
+
+# Generated installers and distribution files
+dist/
+*.exe
+*.msi
+
+# Packaged Java applications
+*.jar
+*.war
+*.ear
+
+# Bundled Java runtime
+runtime/
+jre/
+
+# Logs and temporary files
 *.log
+*.tmp
+hs_err_pid*
+
+# IDE settings
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+
+# Database credentials and secrets
+db.properties
+.env
+.env.*
+!.env.example
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Backup files
+*.bak
+*.old

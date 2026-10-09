@@ -2,6 +2,8 @@ package com.library;
 
 import com.library.exception.DatabaseException;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
@@ -20,12 +22,25 @@ public class DBConnection {
 
     private static void loadProperties() {
         props = new Properties();
+
+        // 1. Check for external db.properties in working directory or app root
+        File externalFile = new File(CONFIG_FILE);
+        if (externalFile.exists() && externalFile.isFile()) {
+            try (InputStream input = new FileInputStream(externalFile)) {
+                props.load(input);
+                return;
+            } catch (IOException ignored) {
+                // fallback to classpath
+            }
+        }
+
+        // 2. Fallback to classpath resource (src/main/resources/db.properties)
         try (InputStream input = DBConnection.class.getClassLoader()
                 .getResourceAsStream(CONFIG_FILE)) {
             if (input == null) {
                 throw new DatabaseException(
-                        "Configuration file " + CONFIG_FILE + " was not found on the classpath. " +
-                                "Please ensure it is located in src/main/resources/.");
+                        "Configuration file " + CONFIG_FILE + " was not found. " +
+                                "Please place a valid db.properties file in the application directory.");
             }
             props.load(input);
         } catch (IOException e) {
