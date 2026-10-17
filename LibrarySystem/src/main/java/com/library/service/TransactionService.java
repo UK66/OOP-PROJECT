@@ -6,7 +6,7 @@ import com.library.model.Member;
 import com.library.model.Transaction;
 import com.library.exception.BookNotAvailableException;
 import com.library.exception.MemberNotFoundException;
-
+import java.util.ArrayList;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -141,4 +141,28 @@ public class TransactionService {
     public Transaction findTransactionById(int transactionId) {
         return transactionDAO.getTransactionById(transactionId);
     }
+    
+    public List<Transaction> getActiveIssuesForBook(int bookId) {
+        return transactionDAO.getTransactionsByBook(bookId).stream()
+        .filter(t -> t.getStatus() == Transaction.Status.ISSUED).toList();
+    }
+
+/**
+ * For every book with zero available copies, returns the active (ISSUED)
+ * transaction for each copy currently out — so staff can tell a waiting
+ * member when a copy is due back. Not a reservation system: it shows the
+ * current state, with no queue or notification.
+ */
+    public List<Transaction> getUnavailableBooksTransactions() {
+        List<Transaction> result = new ArrayList<>();
+        for (Book book : bookDAO.getAllBooks()) {
+            if (!book.isAvailable()) {
+                result.addAll(getActiveIssuesForBook(book.getBookId()));
+            }
+        }
+        return result;
+    }
+    public List<Transaction> getTransactionsByBook(int bookId) {
+       return transactionDAO.getTransactionsByBook(bookId);   
+    }   
 }

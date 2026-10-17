@@ -12,6 +12,8 @@ public interface ITransactionDAO {
 
     List<Transaction> getOverdueTransactions();
 
+    List<Transaction> getTransactionsByBook(int bookId);
+
     Transaction getTransactionById(int transactionId);
 
     List<Transaction> getActiveTransactions();

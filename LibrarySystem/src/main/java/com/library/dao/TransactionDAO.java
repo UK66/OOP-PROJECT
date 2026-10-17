@@ -233,7 +233,34 @@ public class TransactionDAO implements ITransactionDAO {
             throw DatabaseException.fromSQLException("Failed to clear fines for member " + memberId, e);
         }
     }
+    @Override
+    public List<Transaction> getTransactionsByBook(int bookId) {
+    String sql = "SELECT t.*, b.title AS book_title, m.name AS member_name " +
+                 "FROM transactions t " +
+                 "JOIN books b ON t.book_id = b.book_id " +
+                 "JOIN members m ON t.member_id = m.member_id " +
+                 "WHERE t.book_id = ? " +
+                 "ORDER BY t.issue_date DESC";
 
+    List<Transaction> results = new ArrayList<>();
+
+    try (Connection conn = DBConnection.getConnection();
+         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        ps.setInt(1, bookId);
+
+        try (ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                results.add(mapRow(rs));
+            }
+        }
+
+    } catch (SQLException e) {
+        throw new RuntimeException("Failed to fetch transactions for book " + bookId + ": " + e.getMessage(), e);
+    }
+
+    return results;
+    }       
     // ── Row mapping helper ──────────────────────────────────
     private Transaction mapRow(ResultSet rs) throws SQLException {
         Date returnDate = rs.getDate("return_date");

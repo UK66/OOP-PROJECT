@@ -228,6 +228,11 @@ class TransactionServiceTest {
         }
 
         @Override
+        public List<Transaction> getTransactionsByBook(int bookId) {
+            return list.stream().filter(t -> t.getBookId() == bookId).toList();
+        }
+
+        @Override
         public void clearAllFinesForMember(int memberId) {
             list.stream().filter(t -> t.getMemberId() == memberId).forEach(t -> t.setFineAmount(BigDecimal.ZERO));
         }
